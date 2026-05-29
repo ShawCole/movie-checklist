@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shaw's Movie Checklist</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0a0a0f;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+  .container { max-width: 720px; margin: 0 auto; }
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 0.25rem;
+    background: linear-gradient(135deg, #f5c518, #e6a700);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle {
+    text-align: center;
+    color: #666;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+  }
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .stat {
+    text-align: center;
+    padding: 0.6rem 1.2rem;
+    border-radius: 10px;
+    background: #141420;
+    border: 1px solid #222;
+    min-width: 100px;
+  }
+  .stat-num { font-size: 1.5rem; font-weight: 700; }
+  .stat-num.seen-c { color: #4ade80; }
+  .stat-num.must-c { color: #f5c518; }
+  .stat-num.unseen-c { color: #555; }
+  .stat-label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.8rem;
+    color: #888;
+  }
+  .legend span { display: flex; align-items: center; gap: 0.35rem; }
+  .legend .dot {
+    width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+  }
+  .dot-unseen { border: 2px solid #444; background: transparent; }
+  .dot-seen { background: #4ade80; }
+  .dot-must { background: #f5c518; }
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .controls button {
+    padding: 0.4rem 0.9rem;
+    border-radius: 6px;
+    border: 1px solid #333;
+    background: #1a1a2a;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.15s;
+  }
+  .controls button:hover { background: #252540; border-color: #555; }
+  .controls button.active { border-color: #f5c518; color: #f5c518; }
+  .search-wrap {
+    position: relative;
+    margin-bottom: 1rem;
+  }
+  .search-wrap input {
+    width: 100%;
+    padding: 0.6rem 1rem 0.6rem 2.2rem;
+    border-radius: 8px;
+    border: 1px solid #222;
+    background: #141420;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-wrap input:focus { border-color: #f5c518; }
+  .search-wrap::before {
+    content: '\1F50D';
+    position: absolute;
+    left: 0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.85rem;
+  }
+  .movie-list { list-style: none; }
+  .movie-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.12s;
+    user-select: none;
+    border-bottom: 1px solid #161622;
+  }
+  .movie-item:hover { background: #161625; }
+  .movie-item.state-seen .movie-name {
+    color: #4ade80;
+  }
+  .movie-item.state-must .movie-name {
+    color: #f5c518;
+    font-weight: 600;
+  }
+  .movie-item.state-unseen .movie-name {
+    color: #777;
+  }
+  .check-box {
+    width: 22px; height: 22px; min-width: 22px;
+    border-radius: 6px;
+    border: 2px solid #444;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem;
+    transition: all 0.15s;
+  }
+  .state-seen .check-box {
+    background: #4ade80;
+    border-color: #4ade80;
+    color: #0a0a0f;
+  }
+  .state-must .check-box {
+    background: #f5c518;
+    border-color: #f5c518;
+    color: #0a0a0f;
+  }
+  .movie-num {
+    font-size: 0.7rem;
+    color: #444;
+    min-width: 22px;
+    text-align: right;
+  }
+  .movie-name {
+    font-size: 0.95rem;
+    transition: color 0.15s;
+  }
+  .movie-tag {
+    margin-left: auto;
+    font-size: 0.65rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .state-seen .movie-tag { background: #4ade8022; color: #4ade80; }
+  .state-must .movie-tag { background: #f5c51822; color: #f5c518; }
+  .state-unseen .movie-tag { display: none; }
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: #1a1a2a;
+    border-radius: 2px;
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s;
+    background: linear-gradient(90deg, #4ade80, #f5c518);
+  }
+  .hidden { display: none !important; }
+  @media (max-width: 500px) {
+    body { padding: 1rem 0.5rem; }
+    h1 { font-size: 1.4rem; }
+    .movie-name { font-size: 0.85rem; }
+    .stats { gap: 0.75rem; }
+    .stat { min-width: 80px; padding: 0.4rem 0.8rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Movie Checklist</h1>
+  <p class="subtitle">Click once = Seen &middot; Click twice = Must See &middot; Click three times = Reset</p>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-num seen-c" id="seen-count">0</div><div class="stat-label">Seen</div></div>
+    <div class="stat"><div class="stat-num must-c" id="must-count">0</div><div class="stat-label">Must See</div></div>
+    <div class="stat"><div class="stat-num unseen-c" id="unseen-count">0</div><div class="stat-label">Not Seen</div></div>
+  </div>
+
+  <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+
+  <div class="legend">
+    <span><span class="dot dot-unseen"></span> Not Seen</span>
+    <span><span class="dot dot-seen"></span> Seen</span>
+    <span><span class="dot dot-must"></span> Must See</span>
+  </div>
+
+  <div class="controls">
+    <button class="active" data-filter="all">All</button>
+    <button data-filter="unseen">Not Seen</button>
+    <button data-filter="seen">Seen</button>
+    <button data-filter="must">Must See</button>
+    <button data-filter="reset" style="margin-left:0.5rem; color:#f55;">Reset All</button>
+  </div>
+
+  <div class="search-wrap">
+    <input type="text" id="search" placeholder="Search movies..." autocomplete="off">
+  </div>
+
+  <ul class="movie-list" id="movie-list"></ul>
+</div>
+
+<script>
+const MOVIES = [
+  "The Godfather","The Godfather Part II","The Shawshank Redemption","Pulp Fiction",
+  "Forrest Gump","The Dark Knight","Fight Club","Goodfellas","Star Wars: A New Hope",
+  "The Empire Strikes Back","Jurassic Park","Titanic","The Matrix","Jaws",
+  "Back to the Future","Raiders of the Lost Ark","E.T. the Extra-Terrestrial",
+  "The Silence of the Lambs","Schindler's List","Saving Private Ryan","Gladiator",
+  "Braveheart","The Lord of the Rings: The Fellowship of the Ring",
+  "The Lord of the Rings: The Two Towers","The Lord of the Rings: The Return of the King",
+  "Inception","Interstellar","The Lion King","Toy Story","Finding Nemo","Shrek",
+  "Home Alone","Die Hard","Terminator 2: Judgment Day","Alien","Aliens","Rocky",
+  "The Breakfast Club","Ferris Bueller's Day Off","Dirty Dancing","Grease",
+  "The Princess Bride","Ghostbusters","Indiana Jones and the Last Crusade",
+  "The Sixth Sense","Se7en","The Usual Suspects","Memento","No Country for Old Men",
+  "There Will Be Blood","The Departed","Casino","Scarface","Taxi Driver",
+  "Apocalypse Now","Full Metal Jacket","The Shining","Psycho","The Exorcist",
+  "Halloween","A Clockwork Orange","2001: A Space Odyssey","Blade Runner","Casablanca",
+  "Citizen Kane","Gone with the Wind","The Wizard of Oz","Singin' in the Rain",
+  "It's a Wonderful Life","Some Like It Hot","12 Angry Men",
+  "One Flew Over the Cuckoo's Nest","Good Will Hunting","Dead Poets Society",
+  "A Beautiful Mind","The Green Mile","Slumdog Millionaire","La La Land","Whiplash",
+  "Parasite","Spirited Away","The Truman Show","Eternal Sunshine of the Spotless Mind",
+  "Groundhog Day","Mrs. Doubtfire","The Big Lebowski","Office Space","Anchorman",
+  "Superbad","Mean Girls","Clueless","Pretty Woman","When Harry Met Sally",
+  "Love Actually","The Notebook","Top Gun",
+  "Pirates of the Caribbean: The Curse of the Black Pearl","Avatar",
+  "Mad Max: Fury Road","Django Unchained"
+];
+
+const STATES = ['unseen', 'seen', 'must'];
+const LABELS = { unseen: '', seen: 'Seen', must: 'Must See' };
+const ICONS = { unseen: '', seen: '\u2713', must: '\u2605' };
+
+let movieStates = {};
+const STORAGE_KEY = 'shaw-movie-checklist';
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) movieStates = JSON.parse(saved);
+  } catch(e) {}
+  MOVIES.forEach(m => { if (!movieStates[m]) movieStates[m] = 'unseen'; });
+}
+
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(movieStates)); } catch(e) {}
+}
+
+function cycleState(movie) {
+  const cur = STATES.indexOf(movieStates[movie]);
+  movieStates[movie] = STATES[(cur + 1) % 3];
+  saveState();
+  render();
+}
+
+let currentFilter = 'all';
+let searchTerm = '';
+
+function render() {
+  const list = document.getElementById('movie-list');
+  const items = list.querySelectorAll('.movie-item');
+
+  items.forEach(el => {
+    const movie = el.dataset.movie;
+    const state = movieStates[movie];
+    el.className = `movie-item state-${state}`;
+    el.querySelector('.check-box').textContent = ICONS[state];
+    el.querySelector('.movie-tag').textContent = LABELS[state];
+
+    const matchesFilter = currentFilter === 'all' || currentFilter === state;
+    const matchesSearch = !searchTerm || movie.toLowerCase().includes(searchTerm);
+    el.classList.toggle('hidden', !matchesFilter || !matchesSearch);
+  });
+
+  updateStats();
+}
+
+function updateStats() {
+  const counts = { seen: 0, must: 0, unseen: 0 };
+  MOVIES.forEach(m => counts[movieStates[m]]++);
+  document.getElementById('seen-count').textContent = counts.seen;
+  document.getElementById('must-count').textContent = counts.must;
+  document.getElementById('unseen-count').textContent = counts.unseen;
+  const pct = ((counts.seen + counts.must) / MOVIES.length) * 100;
+  document.getElementById('progress').style.width = pct + '%';
+}
+
+function buildList() {
+  const list = document.getElementById('movie-list');
+  MOVIES.forEach((movie, i) => {
+    const li = document.createElement('li');
+    li.className = `movie-item state-${movieStates[movie]}`;
+    li.dataset.movie = movie;
+    li.innerHTML = `
+      <span class="movie-num">${i + 1}</span>
+      <span class="check-box">${ICONS[movieStates[movie]]}</span>
+      <span class="movie-name">${movie}</span>
+      <span class="movie-tag">${LABELS[movieStates[movie]]}</span>
+    `;
+    li.addEventListener('click', () => cycleState(movie));
+    list.appendChild(li);
+  });
+}
+
+document.querySelectorAll('.controls button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const f = btn.dataset.filter;
+    if (f === 'reset') {
+      if (confirm('Reset all movies to Not Seen?')) {
+        MOVIES.forEach(m => movieStates[m] = 'unseen');
+        saveState();
+        render();
+      }
+      return;
+    }
+    document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = f;
+    render();
+  });
+});
+
+document.getElementById('search').addEventListener('input', e => {
+  searchTerm = e.target.value.toLowerCase();
+  render();
+});
+
+loadState();
+buildList();
+updateStats();
+</script>
+</body>
+</html>
