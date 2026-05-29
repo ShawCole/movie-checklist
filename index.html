@@ -233,6 +233,7 @@
     <button data-filter="must">Must See</button>
     <button data-filter="rewatch">Watch Again</button>
     <button data-filter="reset" style="margin-left:0.5rem; color:#f55;">Reset All</button>
+    <button id="save-btn" style="margin-left:0.5rem; background:#1a2a1a; border-color:#4ade80; color:#4ade80;">Save</button>
   </div>
 
   <div class="search-wrap">
@@ -271,6 +272,7 @@ const MOVIES = [
   "Mad Max: Fury Road","Django Unchained"
 ];
 
+const SAVED_STATES = null;
 const STATES = ['unseen', 'seen', 'must', 'rewatch'];
 const LABELS = { unseen: '', seen: 'Seen', must: 'Must See', rewatch: 'Watch Again' };
 const ICONS = { unseen: '', seen: '\u2713', must: '\u2605', rewatch: '\u21BB' };
@@ -283,6 +285,9 @@ function loadState() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) movieStates = JSON.parse(saved);
   } catch(e) {}
+  if (SAVED_STATES && Object.keys(movieStates).length === 0) {
+    Object.assign(movieStates, SAVED_STATES);
+  }
   MOVIES.forEach(m => { if (!movieStates[m]) movieStates[m] = 'unseen'; });
 }
 
@@ -368,6 +373,34 @@ document.querySelectorAll('.controls button').forEach(btn => {
 document.getElementById('search').addEventListener('input', e => {
   searchTerm = e.target.value.toLowerCase();
   render();
+});
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('save-btn');
+  const orig = btn.textContent;
+  btn.textContent = 'Deploying...';
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+  try {
+    const res = await fetch('/.netlify/functions/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ states: movieStates }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      btn.textContent = 'Saved!';
+      btn.style.borderColor = '#4ade80';
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.style.opacity = '1'; }, 3000);
+    } else {
+      btn.textContent = 'Error';
+      btn.style.borderColor = '#f55';
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.style.opacity = '1'; btn.style.borderColor = '#4ade80'; }, 3000);
+    }
+  } catch(e) {
+    btn.textContent = 'Error';
+    setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.style.opacity = '1'; }, 3000);
+  }
 });
 
 loadState();
