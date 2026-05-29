@@ -562,9 +562,10 @@ let searchTerm = '';
 function getOtherUsers() {
   const names = new Set(Object.keys(ALL_USERS));
   // Also check localStorage for users not yet saved/deployed
+  const skip = ['movie-checklist-custom', 'movie-checklist-last-user'];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key.startsWith('movie-checklist-')) {
+    if (key.startsWith('movie-checklist-') && !skip.includes(key)) {
       const name = key.replace('movie-checklist-', '');
       if (name) names.add(name);
     }
@@ -716,10 +717,11 @@ function showNameModal() {
 
   // Show existing users as quick-select buttons
   const names = Object.keys(ALL_USERS);
-  // Also from localStorage
+  // Also from localStorage (skip non-user keys)
+  const skipKeys = ['movie-checklist-custom', 'movie-checklist-last-user'];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key.startsWith('movie-checklist-')) {
+    if (key.startsWith('movie-checklist-') && !skipKeys.includes(key)) {
       const n = key.replace('movie-checklist-', '');
       if (n && !names.find(x => x.toLowerCase() === n.toLowerCase())) names.push(n);
     }
