@@ -25,9 +25,9 @@ export default async (req) => {
     });
   }
 
-  const states = body.states;
-  if (!states || typeof states !== "object") {
-    return new Response(JSON.stringify({ error: "Missing states object" }), {
+  const { user, states } = body;
+  if (!user || typeof user !== "string" || !states || typeof states !== "object") {
+    return new Response(JSON.stringify({ error: "Missing user or states" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
@@ -40,25 +40,37 @@ export default async (req) => {
   const siteData = await siteRes.json();
   const siteUrl = siteData.ssl_url || siteData.url;
 
-  const htmlRes = await fetch(`${siteUrl}/index.html`);
+  const htmlRes = await fetch(`${siteUrl}/index.html?_cb=${Date.now()}`);
   let html = await htmlRes.text();
 
-  // Inject saved states: replace the loadState function to use baked-in defaults
-  const stateJson = JSON.stringify(states);
-  const injection = `const SAVED_STATES = ${stateJson};\n`;
+  // Extract existing ALL_USERS from the HTML
+  let allUsers = {};
+  const match = html.match(/const ALL_USERS = (\{[\s\S]*?\});\s*\nconst STATES/);
+  if (match) {
+    try {
+      allUsers = JSON.parse(match[1]);
+    } catch (e) {
+      // If parse fails, start fresh
+      allUsers = {};
+    }
+  }
 
-  if (html.includes("const SAVED_STATES =")) {
-    // Replace existing injection
-    html = html.replace(/const SAVED_STATES = .+;\n/, injection);
+  // Merge this user's states in
+  allUsers[user] = states;
+
+  const allUsersJson = JSON.stringify(allUsers);
+  const injection = `const ALL_USERS = ${allUsersJson};\nconst STATES`;
+
+  if (match) {
+    html = html.replace(/const ALL_USERS = \{[\s\S]*?\};\s*\nconst STATES/, injection);
   } else {
-    // Insert before MOVIES const
-    html = html.replace("const MOVIES = [", injection + "const MOVIES = [");
+    html = html.replace("const ALL_USERS = {};\nconst STATES", injection);
   }
 
   // Compute SHA1 for deploy API
   const sha1 = createHash("sha1").update(html).digest("hex");
 
-  // Step 1: Create deploy with file manifest
+  // Create deploy with file manifest
   const deployRes = await fetch(`https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`, {
     method: "POST",
     headers: {
@@ -81,7 +93,7 @@ export default async (req) => {
   const deployData = await deployRes.json();
   const deployId = deployData.id;
 
-  // Step 2: Upload the file
+  // Upload the file
   const uploadRes = await fetch(
     `https://api.netlify.com/api/v1/deploys/${deployId}/files/%2Findex.html`,
     {
@@ -103,7 +115,7 @@ export default async (req) => {
   }
 
   return new Response(
-    JSON.stringify({ success: true, deploy_id: deployId, url: siteUrl }),
+    JSON.stringify({ success: true, deploy_id: deployId, users: Object.keys(allUsers) }),
     {
       status: 200,
       headers: { "Content-Type": "application/json" },
