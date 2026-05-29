@@ -47,6 +47,7 @@
   .stat-num { font-size: 1.5rem; font-weight: 700; }
   .stat-num.seen-c { color: #4ade80; }
   .stat-num.must-c { color: #f5c518; }
+  .stat-num.rewatch-c { color: #a78bfa; }
   .stat-num.unseen-c { color: #555; }
   .stat-label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
   .legend {
@@ -64,6 +65,7 @@
   .dot-unseen { border: 2px solid #444; background: transparent; }
   .dot-seen { background: #4ade80; }
   .dot-must { background: #f5c518; }
+  .dot-rewatch { background: #a78bfa; }
   .controls {
     display: flex;
     justify-content: center;
@@ -127,6 +129,9 @@
     color: #f5c518;
     font-weight: 600;
   }
+  .movie-item.state-rewatch .movie-name {
+    color: #a78bfa;
+  }
   .movie-item.state-unseen .movie-name {
     color: #777;
   }
@@ -146,6 +151,11 @@
   .state-must .check-box {
     background: #f5c518;
     border-color: #f5c518;
+    color: #0a0a0f;
+  }
+  .state-rewatch .check-box {
+    background: #a78bfa;
+    border-color: #a78bfa;
     color: #0a0a0f;
   }
   .movie-num {
@@ -169,6 +179,7 @@
   }
   .state-seen .movie-tag { background: #4ade8022; color: #4ade80; }
   .state-must .movie-tag { background: #f5c51822; color: #f5c518; }
+  .state-rewatch .movie-tag { background: #a78bfa22; color: #a78bfa; }
   .state-unseen .movie-tag { display: none; }
   .progress-bar {
     width: 100%;
@@ -197,11 +208,12 @@
 <body>
 <div class="container">
   <h1>Movie Checklist</h1>
-  <p class="subtitle">Click once = Seen &middot; Click twice = Must See &middot; Click three times = Reset</p>
+  <p class="subtitle">Click to cycle: Not Seen &rarr; Seen &rarr; Must See &rarr; Watch Again &rarr; Reset</p>
 
   <div class="stats">
     <div class="stat"><div class="stat-num seen-c" id="seen-count">0</div><div class="stat-label">Seen</div></div>
     <div class="stat"><div class="stat-num must-c" id="must-count">0</div><div class="stat-label">Must See</div></div>
+    <div class="stat"><div class="stat-num rewatch-c" id="rewatch-count">0</div><div class="stat-label">Watch Again</div></div>
     <div class="stat"><div class="stat-num unseen-c" id="unseen-count">0</div><div class="stat-label">Not Seen</div></div>
   </div>
 
@@ -211,6 +223,7 @@
     <span><span class="dot dot-unseen"></span> Not Seen</span>
     <span><span class="dot dot-seen"></span> Seen</span>
     <span><span class="dot dot-must"></span> Must See</span>
+    <span><span class="dot dot-rewatch"></span> Watch Again</span>
   </div>
 
   <div class="controls">
@@ -218,6 +231,7 @@
     <button data-filter="unseen">Not Seen</button>
     <button data-filter="seen">Seen</button>
     <button data-filter="must">Must See</button>
+    <button data-filter="rewatch">Watch Again</button>
     <button data-filter="reset" style="margin-left:0.5rem; color:#f55;">Reset All</button>
   </div>
 
@@ -257,9 +271,9 @@ const MOVIES = [
   "Mad Max: Fury Road","Django Unchained"
 ];
 
-const STATES = ['unseen', 'seen', 'must'];
-const LABELS = { unseen: '', seen: 'Seen', must: 'Must See' };
-const ICONS = { unseen: '', seen: '\u2713', must: '\u2605' };
+const STATES = ['unseen', 'seen', 'must', 'rewatch'];
+const LABELS = { unseen: '', seen: 'Seen', must: 'Must See', rewatch: 'Watch Again' };
+const ICONS = { unseen: '', seen: '\u2713', must: '\u2605', rewatch: '\u21BB' };
 
 let movieStates = {};
 const STORAGE_KEY = 'shaw-movie-checklist';
@@ -278,7 +292,7 @@ function saveState() {
 
 function cycleState(movie) {
   const cur = STATES.indexOf(movieStates[movie]);
-  movieStates[movie] = STATES[(cur + 1) % 3];
+  movieStates[movie] = STATES[(cur + 1) % 4];
   saveState();
   render();
 }
@@ -306,12 +320,13 @@ function render() {
 }
 
 function updateStats() {
-  const counts = { seen: 0, must: 0, unseen: 0 };
+  const counts = { seen: 0, must: 0, rewatch: 0, unseen: 0 };
   MOVIES.forEach(m => counts[movieStates[m]]++);
   document.getElementById('seen-count').textContent = counts.seen;
   document.getElementById('must-count').textContent = counts.must;
+  document.getElementById('rewatch-count').textContent = counts.rewatch;
   document.getElementById('unseen-count').textContent = counts.unseen;
-  const pct = ((counts.seen + counts.must) / MOVIES.length) * 100;
+  const pct = ((counts.seen + counts.must + counts.rewatch) / MOVIES.length) * 100;
   document.getElementById('progress').style.width = pct + '%';
 }
 
