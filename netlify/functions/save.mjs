@@ -25,7 +25,7 @@ export default async (req) => {
     });
   }
 
-  const { user, states } = body;
+  const { user, states, customMovies } = body;
   if (!user || typeof user !== "string" || !states || typeof states !== "object") {
     return new Response(JSON.stringify({ error: "Missing user or states" }), {
       status: 400,
@@ -45,27 +45,49 @@ export default async (req) => {
 
   // Extract existing ALL_USERS from the HTML
   let allUsers = {};
-  const match = html.match(/const ALL_USERS = (\{[\s\S]*?\});\s*\nconst STATES/);
-  if (match) {
+  const usersMatch = html.match(/const ALL_USERS = (\{[\s\S]*?\});\n\/\* CUSTOM_MOVIES/);
+  if (usersMatch) {
     try {
-      allUsers = JSON.parse(match[1]);
+      allUsers = JSON.parse(usersMatch[1]);
     } catch (e) {
-      // If parse fails, start fresh
       allUsers = {};
+    }
+  }
+
+  // Extract existing CUSTOM_MOVIES from the HTML
+  let existingCustom = [];
+  const customMatch = html.match(/const CUSTOM_MOVIES = (\[[\s\S]*?\]);/);
+  if (customMatch) {
+    try {
+      existingCustom = JSON.parse(customMatch[1]);
+    } catch (e) {
+      existingCustom = [];
     }
   }
 
   // Merge this user's states in
   allUsers[user] = states;
 
-  const allUsersJson = JSON.stringify(allUsers);
-  const injection = `const ALL_USERS = ${allUsersJson};\nconst STATES`;
+  // Merge custom movies (deduplicate, case-insensitive)
+  const incomingCustom = Array.isArray(customMovies) ? customMovies : [];
+  const mergedCustomSet = new Map();
+  [...existingCustom, ...incomingCustom].forEach(m => {
+    if (!mergedCustomSet.has(m.toLowerCase())) mergedCustomSet.set(m.toLowerCase(), m);
+  });
+  const mergedCustom = [...mergedCustomSet.values()];
 
-  if (match) {
-    html = html.replace(/const ALL_USERS = \{[\s\S]*?\};\s*\nconst STATES/, injection);
+  // Replace ALL_USERS
+  const allUsersJson = JSON.stringify(allUsers);
+  const usersInjection = `const ALL_USERS = ${allUsersJson};\n/* CUSTOM_MOVIES`;
+  if (usersMatch) {
+    html = html.replace(/const ALL_USERS = \{[\s\S]*?\};\n\/\* CUSTOM_MOVIES/, usersInjection);
   } else {
-    html = html.replace("const ALL_USERS = {};\nconst STATES", injection);
+    html = html.replace("const ALL_USERS = {};\n/* CUSTOM_MOVIES", usersInjection);
   }
+
+  // Replace CUSTOM_MOVIES
+  const customJson = JSON.stringify(mergedCustom);
+  html = html.replace(/const CUSTOM_MOVIES = \[[\s\S]*?\];/, `const CUSTOM_MOVIES = ${customJson};`);
 
   // Compute SHA1 for deploy API
   const sha1 = createHash("sha1").update(html).digest("hex");

@@ -335,6 +335,40 @@
   }
   .compare-stats strong { color: #f5c518; }
 
+  .add-movie-wrap {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .add-movie-wrap input {
+    flex: 1;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    border: 1px solid #222;
+    background: #141420;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .add-movie-wrap input:focus { border-color: #f5c518; }
+  .add-movie-wrap button {
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    border: 1px solid #f5c518;
+    background: #1a1a2a;
+    color: #f5c518;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .add-movie-wrap button:hover { background: #252540; }
+  .movie-item.user-added .movie-num {
+    color: #f5c518;
+  }
+
   @media (max-width: 500px) {
     body { padding: 1rem 0.5rem; }
     h1 { font-size: 1.4rem; }
@@ -399,6 +433,11 @@
     <input type="text" id="search" placeholder="Search movies..." autocomplete="off">
   </div>
 
+  <div class="add-movie-wrap">
+    <input type="text" id="add-movie-input" placeholder="Add a movie..." autocomplete="off">
+    <button id="add-movie-btn">+ Add</button>
+  </div>
+
   <ul class="movie-list" id="movie-list"></ul>
 
   <div class="compare-section hidden" id="compare-section">
@@ -411,7 +450,7 @@
 </div>
 
 <script>
-const MOVIES = [
+const BASE_MOVIES = [
   "The Godfather","The Godfather Part II","The Shawshank Redemption","Pulp Fiction",
   "Forrest Gump","The Dark Knight","Fight Club","Goodfellas","Star Wars: A New Hope",
   "The Empire Strikes Back","Jurassic Park","Titanic","The Matrix","Jaws",
@@ -464,6 +503,23 @@ const MOVIES = [
 
 /* ALL_USERS is baked in by the save function: { "Shaw": { "The Godfather": "seen", ... }, ... } */
 const ALL_USERS = {};
+/* CUSTOM_MOVIES is baked in by the save function: ["Movie A", "Movie B"] */
+const CUSTOM_MOVIES = [];
+
+// Merge: custom movies at the top, then base movies (deduped)
+let MOVIES = [];
+function rebuildMovieList() {
+  const customLocal = JSON.parse(localStorage.getItem('movie-checklist-custom') || '[]');
+  const allCustom = [...new Set([...customLocal, ...CUSTOM_MOVIES])];
+  // Save merged back to localStorage
+  localStorage.setItem('movie-checklist-custom', JSON.stringify(allCustom));
+  const baseSet = new Set(BASE_MOVIES.map(m => m.toLowerCase()));
+  // Custom movies that aren't already in base go to top
+  const uniqueCustom = allCustom.filter(m => !baseSet.has(m.toLowerCase()));
+  MOVIES = [...uniqueCustom, ...BASE_MOVIES];
+}
+rebuildMovieList();
+
 const STATES = ['unseen', 'seen', 'must', 'rewatch'];
 const LABELS = { unseen: '', seen: 'Seen', must: 'Must See', rewatch: 'Watch Again' };
 const ICONS = { unseen: '', seen: '\u2713', must: '\u2605', rewatch: '\u21BB' };
@@ -560,15 +616,20 @@ function updateStats() {
   document.getElementById('progress').style.width = pct + '%';
 }
 
+function isCustomMovie(movie) {
+  return !BASE_MOVIES.find(m => m.toLowerCase() === movie.toLowerCase());
+}
+
 function buildList() {
   const list = document.getElementById('movie-list');
   list.innerHTML = '';
   MOVIES.forEach((movie, i) => {
     const li = document.createElement('li');
-    li.className = 'movie-item state-' + movieStates[movie];
+    const isCustom = isCustomMovie(movie);
+    li.className = 'movie-item state-' + movieStates[movie] + (isCustom ? ' user-added' : '');
     li.dataset.movie = movie;
     li.innerHTML =
-      '<span class="movie-num">' + (i + 1) + '</span>' +
+      '<span class="movie-num">' + (isCustom ? '\u2605' : (i + 1)) + '</span>' +
       '<span class="check-box">' + ICONS[movieStates[movie]] + '</span>' +
       '<span class="movie-name">' + movie + '</span>' +
       '<span class="movie-tag">' + LABELS[movieStates[movie]] + '</span>' +
@@ -736,6 +797,38 @@ document.getElementById('search').addEventListener('input', e => {
   render();
 });
 
+// --- Add Movie ---
+function addMovie(title) {
+  title = title.trim();
+  if (!title) return;
+  // Check for duplicates (case-insensitive)
+  if (MOVIES.find(m => m.toLowerCase() === title.toLowerCase())) return;
+  // Add to custom list in localStorage
+  const customLocal = JSON.parse(localStorage.getItem('movie-checklist-custom') || '[]');
+  customLocal.push(title);
+  localStorage.setItem('movie-checklist-custom', JSON.stringify(customLocal));
+  // Rebuild and re-render
+  rebuildMovieList();
+  movieStates[title] = 'unseen';
+  saveState();
+  buildList();
+  render();
+}
+
+document.getElementById('add-movie-btn').addEventListener('click', () => {
+  const input = document.getElementById('add-movie-input');
+  addMovie(input.value);
+  input.value = '';
+  input.focus();
+});
+
+document.getElementById('add-movie-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    addMovie(e.target.value);
+    e.target.value = '';
+  }
+});
+
 // --- Save (redeploy) ---
 document.getElementById('save-btn').addEventListener('click', async () => {
   const btn = document.getElementById('save-btn');
@@ -743,11 +836,12 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   btn.textContent = 'Deploying...';
   btn.disabled = true;
   btn.style.opacity = '0.6';
+  const customLocal = JSON.parse(localStorage.getItem('movie-checklist-custom') || '[]');
   try {
     const res = await fetch('/.netlify/functions/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: currentUser, states: movieStates }),
+      body: JSON.stringify({ user: currentUser, states: movieStates, customMovies: customLocal }),
     });
     const data = await res.json();
     if (data.success) {
